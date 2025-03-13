@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ドラッグ可能な編集可能DIV</title>
+    <style>
+        .draggable {
+            width: 300px;
+            border: 1px solid #ccc;
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            background: white;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            cursor: move;
+        }
+        .content {
+            padding: 10px;
+            min-height: 100px;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="draggable" id="draggable">
+        <div class="header" id="header">ドラッグして移動</div>
+        <div class="content" contenteditable="true">ここにテキストを入力</div>
+    </div>
+
+    <script>
+        const dragElement = document.getElementById("draggable");
+        const header = document.getElementById("header");
+
+        let offsetX = 0, offsetY = 0, isDragging = false;
+
+        header.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            offsetX = e.clientX - dragElement.offsetLeft;
+            offsetY = e.clientY - dragElement.offsetTop;
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (isDragging) {
+                dragElement.style.left = e.clientX - offsetX + "px";
+                dragElement.style.top = e.clientY - offsetY + "px";
+            }
+        });
+
+        document.addEventListener("mouseup", () => {
+            isDragging = false;
+        });
+    </script>
+</body>
+</html>
