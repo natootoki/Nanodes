@@ -25,36 +25,58 @@
             min-height: 100px;
             outline: none;
         }
+        .add-button {
+            margin: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
+    <button class="add-button" id="addNode">ノードを追加</button>
     <div class="draggable" id="draggable">
-        <div class="header" id="header">ドラッグして移動</div>
+        <div class="header">ドラッグして移動</div>
         <div class="content" contenteditable="true">ここにテキストを入力</div>
     </div>
 
     <script>
-        const dragElement = document.getElementById("draggable");
-        const header = document.getElementById("header");
+        function makeDraggable(element) {
+            const header = element.querySelector(".header");
+            let offsetX = 0, offsetY = 0, isDragging = false;
 
-        let offsetX = 0, offsetY = 0, isDragging = false;
+            header.addEventListener("mousedown", (e) => {
+                isDragging = true;
+                offsetX = e.clientX - element.offsetLeft;
+                offsetY = e.clientY - element.offsetTop;
+            });
 
-        header.addEventListener("mousedown", (e) => {
-            isDragging = true;
-            offsetX = e.clientX - dragElement.offsetLeft;
-            offsetY = e.clientY - dragElement.offsetTop;
+            document.addEventListener("mousemove", (e) => {
+                if (isDragging) {
+                    element.style.left = e.clientX - offsetX + "px";
+                    element.style.top = e.clientY - offsetY + "px";
+                }
+            });
+
+            document.addEventListener("mouseup", () => {
+                isDragging = false;
+            });
+        }
+
+        document.getElementById("addNode").addEventListener("click", () => {
+            const newNode = document.createElement("div");
+            newNode.className = "draggable";
+            newNode.style.top = "100px";
+            newNode.style.left = "100px";
+            newNode.innerHTML = `
+                <div class="header">ドラッグして移動</div>
+                <div class="content" contenteditable="true">新しいノード</div>
+            `;
+            document.body.appendChild(newNode);
+            makeDraggable(newNode);
         });
 
-        document.addEventListener("mousemove", (e) => {
-            if (isDragging) {
-                dragElement.style.left = e.clientX - offsetX + "px";
-                dragElement.style.top = e.clientY - offsetY + "px";
-            }
-        });
-
-        document.addEventListener("mouseup", () => {
-            isDragging = false;
-        });
+        makeDraggable(document.getElementById("draggable"));
     </script>
 </body>
 </html>
