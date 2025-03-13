@@ -5,11 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ドラッグ可能な編集可能DIV</title>
     <style>
+        .toolbar {
+            display: flex;
+            background: #f4f4f4;
+            padding: 10px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .add-button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
         .draggable {
             width: 300px;
             border: 1px solid #ccc;
             position: absolute;
-            top: 50px;
+            top: 70px;
             left: 50px;
             background: white;
             box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
@@ -33,12 +50,6 @@
             min-height: 100px;
             outline: none;
         }
-        .add-button {
-            margin: 20px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-        }
         svg {
             position: absolute;
             top: 0;
@@ -56,21 +67,74 @@
     </style>
 </head>
 <body>
-    <button class="add-button" id="addNode">ノードを追加</button>
-    <svg id="connections"></svg>
-    <div class="draggable" id="draggable">
-        <div class="header">
-            ドラッグして移動
-            <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
-            <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
-        </div>
-        <div class="content" contenteditable="true">ここにテキストを入力</div>
+    <div class="toolbar">
+        <button class="add-button" id="addNode">ノードを追加</button>
+        <button class="add-button" onclick="exportCSV()">CSVエクスポート</button>
+        <input type="file" id="importCSV" accept=".csv" class="add-button" onchange="importCSV(event)">
     </div>
+    <svg id="connections"></svg>
 
     <script>
         let nodes = [];
         let lines = [];
         let startNode = null;
+
+        function exportCSV() {
+            let nodeData = nodes.map((node, index) => `${node.offsetLeft},${node.offsetTop},${node.querySelector('.content').innerText}`).join("\n");
+            let lineData = lines.map(({ node1, node2 }) => `${nodes.indexOf(node1)},${nodes.indexOf(node2)}`).join("\n");
+            let data = `NODES\n${nodeData}\nLINES\n${lineData}`;
+            let blob = new Blob([data], { type: 'text/csv' });
+            let a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'nodes.csv';
+            a.click();
+        }
+
+        function importCSV(event) {
+            let file = event.target.files[0];
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                let sections = e.target.result.split("LINES\n");
+                let nodeLines = sections[0].split("NODES\n")[1].trim().split("\n");
+                let lineLines = sections[1]?.trim().split("\n") || [];
+                let newNodes = [];
+
+                nodeLines.forEach(line => {
+                    let [x, y, text] = line.split(",");
+                    if (x && y && text) {
+                        let node = addNodeFromCSV(parseInt(x), parseInt(y), text);
+                        newNodes.push(node);
+                    }
+                });
+
+                lineLines.forEach(line => {
+                    let [i1, i2] = line.split(",").map(Number);
+                    if (newNodes[i1] && newNodes[i2]) {
+                        createLine(newNodes[i1], newNodes[i2]);
+                    }
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        function addNodeFromCSV(x, y, text) {
+            const newNode = document.createElement("div");
+            newNode.className = "draggable";
+            newNode.style.top = `${y}px`;
+            newNode.style.left = `${x}px`;
+            newNode.innerHTML = `
+                <div class="header">
+                    ドラッグして移動
+                    <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
+                    <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
+                </div>
+                <div class="content" contenteditable="true">${text}</div>
+            `;
+            document.body.appendChild(newNode);
+            makeDraggable(newNode);
+            nodes.push(newNode);
+            return newNode;
+        }
 
         function makeDraggable(element) {
             const header = element.querySelector(".header");
@@ -162,8 +226,8 @@
             nodes.push(newNode);
         });
 
-        makeDraggable(document.getElementById("draggable"));
-        nodes.push(document.getElementById("draggable"));
+        // makeDraggable(document.getElementById("draggable"));
+        // nodes.push(document.getElementById("draggable"));
     </script>
 </body>
 </html>
