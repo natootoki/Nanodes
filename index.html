@@ -19,6 +19,14 @@
             color: white;
             padding: 10px;
             cursor: move;
+            display: flex;
+            justify-content: space-between;
+        }
+        .header button {
+            background: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
         }
         .content {
             padding: 10px;
@@ -31,16 +39,39 @@
             font-size: 16px;
             cursor: pointer;
         }
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+        line {
+            stroke: black;
+            stroke-width: 4;
+            cursor: pointer;
+            pointer-events: all;
+        }
     </style>
 </head>
 <body>
     <button class="add-button" id="addNode">ノードを追加</button>
+    <svg id="connections"></svg>
     <div class="draggable" id="draggable">
-        <div class="header">ドラッグして移動</div>
+        <div class="header">
+            ドラッグして移動
+            <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
+            <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
+        </div>
         <div class="content" contenteditable="true">ここにテキストを入力</div>
     </div>
 
     <script>
+        let nodes = [];
+        let lines = [];
+        let startNode = null;
+
         function makeDraggable(element) {
             const header = element.querySelector(".header");
             let offsetX = 0, offsetY = 0, isDragging = false;
@@ -55,11 +86,61 @@
                 if (isDragging) {
                     element.style.left = e.clientX - offsetX + "px";
                     element.style.top = e.clientY - offsetY + "px";
+                    updateLines();
                 }
             });
 
             document.addEventListener("mouseup", () => {
                 isDragging = false;
+            });
+        }
+
+        function startConnection(node) {
+            if (startNode === null) {
+                startNode = node;
+            } else {
+                if (startNode !== node) {
+                    createLine(startNode, node);
+                }
+                startNode = null;
+            }
+        }
+
+        function createLine(node1, node2) {
+            const svg = document.getElementById("connections");
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("stroke", "black");
+            line.setAttribute("stroke-width", "4");
+            line.setAttribute("cursor", "pointer");
+            line.addEventListener("click", () => removeLine(line));
+            svg.appendChild(line);
+            lines.push({ line, node1, node2 });
+            updateLines();
+        }
+
+        function removeLine(line) {
+            line.remove();
+            lines = lines.filter(l => l.line !== line);
+        }
+
+        function removeNode(node) {
+            lines = lines.filter(({ line, node1, node2 }) => {
+                if (node1 === node || node2 === node) {
+                    line.remove();
+                    return false;
+                }
+                return true;
+            });
+            node.remove();
+            nodes = nodes.filter(n => n !== node);
+        }
+
+        function updateLines() {
+            lines.forEach(({ line, node1, node2 }) => {
+                line.setAttribute("x1", node1.offsetLeft + node1.offsetWidth / 2);
+                line.setAttribute("y1", node1.offsetTop + node1.offsetHeight / 2);
+                line.setAttribute("x2", node2.offsetLeft + node2.offsetWidth / 2);
+                line.setAttribute("y2", node2.offsetTop + node2.offsetHeight / 2);
             });
         }
 
@@ -69,14 +150,20 @@
             newNode.style.top = "100px";
             newNode.style.left = "100px";
             newNode.innerHTML = `
-                <div class="header">ドラッグして移動</div>
+                <div class="header">
+                    ドラッグして移動
+                    <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
+                    <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
+                </div>
                 <div class="content" contenteditable="true">新しいノード</div>
             `;
             document.body.appendChild(newNode);
             makeDraggable(newNode);
+            nodes.push(newNode);
         });
 
         makeDraggable(document.getElementById("draggable"));
+        nodes.push(document.getElementById("draggable"));
     </script>
 </body>
 </html>
