@@ -280,12 +280,28 @@
             });
         }
 
-
         document.getElementById("addNode").addEventListener("click", () => {
+            // 現在のスクロール位置を取得
+            let scrollX = window.scrollX || document.documentElement.scrollLeft;
+            let scrollY = window.scrollY || document.documentElement.scrollTop;
+
+            // ビューポートのサイズを取得
+            let viewportWidth = window.innerWidth;
+            let viewportHeight = window.innerHeight;
+
+            // ツールバーの高さを取得
+            let toolbar = document.querySelector(".toolbar");
+            let toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+
+            // 新しいノードの位置（現在の画面の左上・ツールバーの下）
+            let newX = scrollX + 20; // 左端から20pxの位置
+            let newY = scrollY + toolbarHeight + 10; // ツールバーの下に配置（+10pxのマージン）
+
+            // ノードを作成
             const newNode = document.createElement("div");
             newNode.className = "draggable";
-            newNode.style.top = "100px";
-            newNode.style.left = "100px";
+            newNode.style.top = `${newY}px`;
+            newNode.style.left = `${newX}px`;
             newNode.innerHTML = `
                 <div class="header">
                     <span>（無題）</span>
