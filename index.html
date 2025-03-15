@@ -181,23 +181,29 @@
         function makeDraggable(element) {
             const header = element.querySelector(".header");
             let offsetX = 0, offsetY = 0, isDragging = false;
+            const minY = 70; // ノードの最小Y座標
 
             header.addEventListener("mousedown", (e) => {
                 isDragging = true;
                 offsetX = e.clientX - element.offsetLeft;
                 offsetY = e.clientY - element.offsetTop;
+                document.body.style.userSelect = "none"; // 選択防止
             });
 
             document.addEventListener("mousemove", (e) => {
                 if (isDragging) {
-                    element.style.left = e.clientX - offsetX + "px";
-                    element.style.top = e.clientY - offsetY + "px";
+                    let newX = e.clientX - offsetX;
+                    let newY = Math.max(e.clientY - offsetY, minY); // 最小Yを適用
+
+                    element.style.left = newX + "px";
+                    element.style.top = newY + "px";
                     updateLines();
                 }
             });
 
             document.addEventListener("mouseup", () => {
                 isDragging = false;
+                document.body.style.userSelect = "auto"; // 選択解除
             });
         }
 
