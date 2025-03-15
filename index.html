@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ドラッグ可能な編集可能DIV</title>
+    <title>Nanodes</title>
     <style>
         .toolbar {
             display: flex;
@@ -97,6 +97,7 @@
         function toggleContentVisibility(node) {
             const content = node.querySelector(".content");
             content.style.display = content.style.display === "none" ? "block" : "none";
+            updateLines();
         }
 
         function exportCSV() {
