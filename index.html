@@ -7,7 +7,7 @@
     <style>
         .toolbar {
             display: flex;
-            background: #f4f4f4;
+            background: red;
             padding: 10px;
             position: fixed;
             top: 0;
@@ -24,7 +24,7 @@
         }
         .draggable {
             display: inline-block;
-            min-width: 300px;
+            min-width: 200px;
             /* max-width: 1000px; */
             border: 1px solid #ccc;
             position: absolute;
@@ -36,18 +36,22 @@
             overflow: hidden;
         }
         .header {
-            background: #007bff;
+            background: black;
             color: white;
             padding: 10px;
             cursor: move;
             display: flex;
-            justify-content: space-between;
+            align-items: center;
+        }
+        .header span {
+            flex-grow: 1;
         }
         .header button {
             background: white;
             border: none;
             cursor: pointer;
             font-size: 14px;
+            margin-left: 10px;
         }
         .content {
             padding: 10px;
@@ -83,9 +87,31 @@
         let lines = [];
         let startNode = null;
 
+        function updateHeaderText(node) {
+            const content = node.querySelector(".content");
+            const header = node.querySelector(".header span"); // ヘッダーのタイトル部分
+            const firstLine = content.innerText.split("\n")[0] || "（無題）";
+            header.textContent = firstLine;
+        }
+
+        function toggleContentVisibility(node) {
+            const content = node.querySelector(".content");
+            content.style.display = content.style.display === "none" ? "block" : "none";
+        }
+
         function exportCSV() {
-            let nodeData = nodes.map((node, index) => `${node.offsetLeft},${node.offsetTop},${node.querySelector('.content').innerText}`).join("\n");
-            let lineData = lines.map(({ node1, node2 }) => `${nodes.indexOf(node1)},${nodes.indexOf(node2)}`).join("\n");
+            let nodeData = nodes.map(node => {
+                let x = node.offsetLeft;
+                let y = node.offsetTop;
+                let text = encodeURIComponent(node.querySelector('.content').innerHTML); // innerHTMLをエンコード
+                let display = node.querySelector('.content').style.display || "block"; // 非表示なら 'none'
+                return `${x},${y},${text},${display}`;
+            }).join("\n");
+
+            let lineData = lines.map(({ node1, node2 }) => {
+                return `${nodes.indexOf(node1)},${nodes.indexOf(node2)}`;
+            }).join("\n");
+
             let data = `NODES\n${nodeData}\nLINES\n${lineData}`;
             let blob = new Blob([data], { type: 'text/csv' });
             let a = document.createElement('a');
@@ -104,11 +130,10 @@
                 let newNodes = [];
 
                 nodeLines.forEach(line => {
-                    let [x, y, text] = line.split(",");
-                    if (x && y && text) {
-                        let node = addNodeFromCSV(parseInt(x), parseInt(y), text);
-                        newNodes.push(node);
-                    }
+                    let [x, y, text, display] = line.split(",");
+                    let decodedText = decodeURIComponent(text); // エンコードされたHTMLを復元
+                    let node = addNodeFromCSV(parseInt(x), parseInt(y), decodedText, display);
+                    newNodes.push(node);
                 });
 
                 lineLines.forEach(line => {
@@ -121,22 +146,35 @@
             reader.readAsText(file);
         }
 
-        function addNodeFromCSV(x, y, text) {
+
+        function addNodeFromCSV(x, y, htmlContent, display = "block") {
             const newNode = document.createElement("div");
             newNode.className = "draggable";
             newNode.style.top = `${y}px`;
             newNode.style.left = `${x}px`;
             newNode.innerHTML = `
                 <div class="header">
-                    ドラッグして移動
+                    <span>（無題）</span>
+                    <button onclick="toggleContentVisibility(this.parentElement.parentElement)">👁️</button>
                     <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
                     <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
                 </div>
-                <div class="content" contenteditable="true">${text}</div>
+                <div class="content" contenteditable="true">${htmlContent}</div>
             `;
+
             document.body.appendChild(newNode);
             makeDraggable(newNode);
             nodes.push(newNode);
+            updateHeaderText(newNode);
+
+            // 表示・非表示状態を復元
+            const content = newNode.querySelector(".content");
+            content.style.display = display;
+
+            // ヘッダーのテキストを更新
+            content.addEventListener("input", () => updateHeaderText(newNode));
+            content.addEventListener("blur", () => updateHeaderText(newNode));
+
             return newNode;
         }
 
@@ -219,7 +257,8 @@
             newNode.style.left = "100px";
             newNode.innerHTML = `
                 <div class="header">
-                    ドラッグして移動
+                    <span>（無題）</span>
+                    <button onclick="toggleContentVisibility(this.parentElement.parentElement)">👁️</button>
                     <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
                     <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
                 </div>
@@ -228,6 +267,11 @@
             document.body.appendChild(newNode);
             makeDraggable(newNode);
             nodes.push(newNode);
+            updateHeaderText(newNode);
+
+            const content = newNode.querySelector(".content");
+            content.addEventListener("input", () => updateHeaderText(newNode));
+            content.addEventListener("blur", () => updateHeaderText(newNode));
         });
 
         // makeDraggable(document.getElementById("draggable"));
