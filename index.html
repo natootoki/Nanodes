@@ -72,13 +72,77 @@
             cursor: pointer;
             pointer-events: all;
         }
+        .node-list {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 250px;
+            height: 100vh;
+            background: #f8f8f8;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .node-list h3 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .node-list ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .node-list li {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            cursor: grab;
+        }
+
+        .node-list li.dragging {
+            opacity: 0.5;
+        }
+
+        .node-list .node-name {
+            display: block;
+            background: #007bff;
+            color: white;
+            padding: 5px;
+            text-align: center;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .node-list .node-name:hover {
+            background: #0056b3;
+        }
+
+        .node-list .position-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        .node-list input {
+            width: 45%;
+        }
+        .connect-btn.selected {
+            background-color: #ffcc00 !important; /* 選択状態 */
+        }
     </style>
 </head>
 <body>
     <div class="toolbar">
         <button class="add-button" id="addNode">ノードを追加</button>
+        <button class="add-button" id="toggleAllNodes">全ノード表示/非表示</button>
         <button class="add-button" onclick="exportCSV()">CSVエクスポート</button>
         <input type="file" id="importCSV" accept=".csv" class="add-button" onchange="importCSV(event)">
+    </div>
+    <div class="node-list">
+        <h3>ノード一覧</h3>
+        <ul id="nodeList"></ul>
     </div>
     <svg id="connections"></svg>
 
@@ -87,11 +151,29 @@
         let lines = [];
         let startNode = null;
 
+        function updateScrollBounds() {
+            let margin = window.innerWidth / 2; // 画面中央に収めるための余白
+            let maxX = 0, maxY = 0;
+
+            nodes.forEach(node => {
+                let right = node.offsetLeft + node.offsetWidth;
+                let bottom = node.offsetTop + node.offsetHeight;
+                if (right > maxX) maxX = right;
+                if (bottom > maxY) maxY = bottom;
+            });
+
+            // 余白を加味してスクロール領域を設定
+            document.documentElement.style.width = `${Math.max(maxX + margin, window.innerWidth)}px`;
+            document.documentElement.style.height = `${Math.max(maxY + margin, window.innerHeight)}px`;
+        }
+
+        // ヘッダーのテキスト変更時にリストを更新
         function updateHeaderText(node) {
-            const content = node.querySelector(".content");
-            const header = node.querySelector(".header span"); // ヘッダーのタイトル部分
-            const firstLine = content.innerText.split("\n")[0] || "（無題）";
+            let content = node.querySelector(".content");
+            let header = node.querySelector(".header span");
+            let firstLine = content.innerText.split("\n")[0] || "（無題）";
             header.textContent = firstLine;
+            updateNodeList(); // ノード一覧を更新
         }
 
         function toggleContentVisibility(node) {
@@ -148,7 +230,7 @@
         }
 
 
-        function addNodeFromCSV(x, y, htmlContent, display = "block") {
+        function addNodeFromCSV(x, y, text, display = "block") {
             const newNode = document.createElement("div");
             newNode.className = "draggable";
             newNode.style.top = `${y}px`;
@@ -157,10 +239,10 @@
                 <div class="header">
                     <span>（無題）</span>
                     <button onclick="toggleContentVisibility(this.parentElement.parentElement)">👁️</button>
-                    <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
+                    <button class="connect-btn" onclick="startConnection(this.parentElement.parentElement)">🔗</button>
                     <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
                 </div>
-                <div class="content" contenteditable="true">${htmlContent}</div>
+                <div class="content" contenteditable="true">${text}</div>
             `;
 
             document.body.appendChild(newNode);
@@ -168,11 +250,9 @@
             nodes.push(newNode);
             updateHeaderText(newNode);
 
-            // 表示・非表示状態を復元
             const content = newNode.querySelector(".content");
             content.style.display = display;
 
-            // ヘッダーのテキストを更新
             content.addEventListener("input", () => updateHeaderText(newNode));
             content.addEventListener("blur", () => updateHeaderText(newNode));
 
@@ -182,44 +262,72 @@
         function makeDraggable(element) {
             const header = element.querySelector(".header");
             let offsetX = 0, offsetY = 0, isDragging = false;
-            const minY = 70; // ノードの最小Y座標
+            const minY = 70;
 
             header.addEventListener("mousedown", (e) => {
                 isDragging = true;
                 offsetX = e.clientX - element.offsetLeft;
                 offsetY = e.clientY - element.offsetTop;
-                document.body.style.userSelect = "none"; // 選択防止
+                document.body.style.userSelect = "none";
             });
 
             document.addEventListener("mousemove", (e) => {
                 if (isDragging) {
                     let newX = e.clientX - offsetX;
-                    let newY = Math.max(e.clientY - offsetY, minY); // 最小Yを適用
+                    let newY = Math.max(e.clientY - offsetY, minY);
 
                     element.style.left = newX + "px";
                     element.style.top = newY + "px";
+
                     updateLines();
                 }
             });
 
             document.addEventListener("mouseup", () => {
                 isDragging = false;
-                document.body.style.userSelect = "auto"; // 選択解除
+                document.body.style.userSelect = "auto";
+                updateScrollBounds(); // ノードを移動したらスクロール領域も更新
             });
         }
 
         function startConnection(node) {
+            let button = node.querySelector(".connect-btn");
+
+            if (!button) {
+                console.error("接続ボタンが見つかりません", node);
+                return;
+            }
+
             if (startNode === null) {
+                // 1つ目のノードを選択
                 startNode = node;
+                button.style.backgroundColor = "#ffcc00"; // 選択中の色（黄色）
             } else {
                 if (startNode !== node) {
+                    // 2つ目のノードを選択 → 接続する（すでに線があるかチェックは createLine 内で実施）
                     createLine(startNode, node);
+                }
+                // 1つ目のボタンの色を元に戻す
+                let firstButton = startNode.querySelector(".connect-btn");
+                if (firstButton) {
+                    firstButton.style.backgroundColor = ""; // 元の色に戻す
                 }
                 startNode = null;
             }
         }
 
         function createLine(node1, node2) {
+            // 既に同じノード間の線があるかチェック
+            let existingLine = lines.some(({ node1: n1, node2: n2 }) => 
+                (n1 === node1 && n2 === node2) || (n1 === node2 && n2 === node1)
+            );
+
+            if (existingLine) {
+                console.log("このノード間にはすでに接続があります。");
+                return; // すでに存在する場合は何もしない
+            }
+
+            // 新しい線を作成
             const svg = document.getElementById("connections");
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
             line.setAttribute("stroke", "black");
@@ -227,15 +335,18 @@
             line.setAttribute("cursor", "pointer");
             line.addEventListener("click", () => removeLine(line));
             svg.appendChild(line);
+
             lines.push({ line, node1, node2 });
             updateLines();
         }
+
 
         function removeLine(line) {
             line.remove();
             lines = lines.filter(l => l.line !== line);
         }
 
+        // ノード削除時にリスト更新
         function removeNode(node) {
             lines = lines.filter(({ line, node1, node2 }) => {
                 if (node1 === node || node2 === node) {
@@ -246,12 +357,11 @@
             });
             node.remove();
             nodes = nodes.filter(n => n !== node);
+            updateNodeList(); // ノード一覧更新
         }
 
         function updateLines() {
             let svg = document.getElementById("connections");
-
-            // 画面全体で最大の座標を取得
             let maxX = 0, maxY = 0;
 
             nodes.forEach(node => {
@@ -261,65 +371,213 @@
                 if (bottom > maxY) maxY = bottom;
             });
 
-            // ドキュメントのスクロールサイズも考慮
-            let docWidth = Math.max(maxX + 100, document.documentElement.scrollWidth, window.innerWidth);
-            let docHeight = Math.max(maxY + 100, document.documentElement.scrollHeight, window.innerHeight);
+            let docWidth = Math.max(maxX + window.innerWidth / 2, document.documentElement.scrollWidth);
+            let docHeight = Math.max(maxY + window.innerHeight / 2, document.documentElement.scrollHeight);
 
-            // SVGのサイズを更新（スクロールが発生しても問題なし）
             svg.setAttribute("width", docWidth);
             svg.setAttribute("height", docHeight);
             svg.style.width = docWidth + "px";
             svg.style.height = docHeight + "px";
 
-            // すべての線を更新
             lines.forEach(({ line, node1, node2 }) => {
                 line.setAttribute("x1", node1.offsetLeft + node1.offsetWidth / 2);
                 line.setAttribute("y1", node1.offsetTop + node1.offsetHeight / 2);
                 line.setAttribute("x2", node2.offsetLeft + node2.offsetWidth / 2);
                 line.setAttribute("y2", node2.offsetTop + node2.offsetHeight / 2);
             });
+
+            // ノード移動時にスクロール可能領域を更新
+            updateScrollBounds();
         }
 
+        // ノード追加時にリスト更新
         document.getElementById("addNode").addEventListener("click", () => {
-            // 現在のスクロール位置を取得
             let scrollX = window.scrollX || document.documentElement.scrollLeft;
             let scrollY = window.scrollY || document.documentElement.scrollTop;
-
-            // ビューポートのサイズを取得
-            let viewportWidth = window.innerWidth;
-            let viewportHeight = window.innerHeight;
-
-            // ツールバーの高さを取得
             let toolbar = document.querySelector(".toolbar");
             let toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
 
-            // 新しいノードの位置（現在の画面の左上・ツールバーの下）
-            let newX = scrollX + 20; // 左端から20pxの位置
-            let newY = scrollY + toolbarHeight + 10; // ツールバーの下に配置（+10pxのマージン）
-
-            // ノードを作成
-            const newNode = document.createElement("div");
+            let newNode = document.createElement("div");
             newNode.className = "draggable";
-            newNode.style.top = `${newY}px`;
-            newNode.style.left = `${newX}px`;
+            newNode.style.top = `${scrollY + toolbarHeight + 10}px`;
+            newNode.style.left = `${scrollX + 20}px`;
             newNode.innerHTML = `
                 <div class="header">
                     <span>（無題）</span>
                     <button onclick="toggleContentVisibility(this.parentElement.parentElement)">👁️</button>
-                    <button onclick="startConnection(this.parentElement.parentElement)">🔗</button>
+                    <button class="connect-btn" onclick="startConnection(this.parentElement.parentElement)">🔗</button>
                     <button onclick="removeNode(this.parentElement.parentElement)">❌</button>
                 </div>
                 <div class="content" contenteditable="true">新しいノード</div>
             `;
+
             document.body.appendChild(newNode);
             makeDraggable(newNode);
             nodes.push(newNode);
             updateHeaderText(newNode);
+            updateNodeList();
 
-            const content = newNode.querySelector(".content");
-            content.addEventListener("input", () => updateHeaderText(newNode));
-            content.addEventListener("blur", () => updateHeaderText(newNode));
+            let content = newNode.querySelector(".content");
+            content.addEventListener("input", () => {
+                updateHeaderText(newNode);
+                updateNodeList();
+            });
+            content.addEventListener("blur", () => {
+                updateHeaderText(newNode);
+                updateNodeList();
+            });
         });
+
+        document.getElementById("toggleAllNodes").addEventListener("click", () => {
+            let allHidden = nodes.every(node => node.querySelector(".content").style.display === "none");
+
+            nodes.forEach(node => {
+                let content = node.querySelector(".content");
+                content.style.display = allHidden ? "block" : "none";
+            });
+
+            // ボタンのラベルを変更
+            document.getElementById("toggleAllNodes").textContent = allHidden ? "全ノード非表示" : "全ノード表示";
+
+            // 線の位置を更新
+            updateLines();
+        });
+
+        function updateNodeList() {
+            let nodeList = document.getElementById("nodeList");
+            nodeList.innerHTML = "";
+
+            nodes.forEach((node, index) => {
+                let li = document.createElement("li");
+                li.draggable = true;
+                li.dataset.index = index; // ノードのインデックスをセット
+
+                let nodeName = node.querySelector(".header span").textContent || `ノード ${index + 1}`;
+
+                let nameButton = document.createElement("button");
+                nameButton.className = "node-name";
+                nameButton.textContent = nodeName;
+
+                // ノード名クリックでスクロール＆テキストエリア表示＆フォーカス
+                nameButton.onclick = () => {
+                    let content = node.querySelector(".content");
+
+                    // 非表示なら表示する
+                    if (content.style.display === "none") {
+                        content.style.display = "block";
+                    }
+
+                    let rect = node.getBoundingClientRect();
+                    let scrollX = window.scrollX || document.documentElement.scrollLeft;
+                    let scrollY = window.scrollY || document.documentElement.scrollTop;
+
+                    // 正確なスクロール位置を計算
+                    let centerX = scrollX + rect.left - (window.innerWidth / 2) + (rect.width / 2);
+                    let centerY = scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2);
+
+                    // requestAnimationFrame を使ってスクロールを確実に実行
+                    requestAnimationFrame(() => {
+                        window.scrollTo({ left: centerX, top: centerY, behavior: "smooth" });
+
+                        // スクロール後にフォーカス＆全選択
+                        setTimeout(() => {
+                            content.focus();
+
+                            // 全選択処理
+                            let range = document.createRange();
+                            let selection = window.getSelection();
+                            range.selectNodeContents(content);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }, 300); // スクロールが終わるタイミングで確実に実行
+                    });
+                };
+
+                // X / Y座標の入力欄
+                let positionControls = document.createElement("div");
+                positionControls.className = "position-controls";
+
+                let xInput = document.createElement("input");
+                xInput.type = "number";
+                xInput.value = node.offsetLeft;
+                xInput.onchange = () => {
+                    node.style.left = `${xInput.value}px`;
+                    updateLines();
+                };
+
+                let yInput = document.createElement("input");
+                yInput.type = "number";
+                yInput.value = node.offsetTop;
+                yInput.onchange = () => {
+                    node.style.top = `${yInput.value}px`;
+                    updateLines();
+                };
+
+                positionControls.appendChild(xInput);
+                positionControls.appendChild(yInput);
+
+                let observer = new MutationObserver(() => {
+                    xInput.value = node.offsetLeft;
+                    yInput.value = node.offsetTop;
+                });
+                observer.observe(node, { attributes: true, attributeFilter: ["style"] });
+
+                li.appendChild(nameButton);
+                li.appendChild(positionControls);
+                nodeList.appendChild(li);
+            });
+
+            addDragAndDrop(); // ドラッグ＆ドロップ機能を有効化
+        }
+
+        function addDragAndDrop() {
+            let nodeList = document.getElementById("nodeList");
+            let draggedItem = null;
+
+            nodeList.querySelectorAll("li").forEach(item => {
+                item.addEventListener("dragstart", (e) => {
+                    draggedItem = item;
+                    item.classList.add("dragging");
+                });
+
+                item.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    let afterElement = getDragAfterElement(nodeList, e.clientY);
+                    if (afterElement == null) {
+                        nodeList.appendChild(draggedItem);
+                    } else {
+                        nodeList.insertBefore(draggedItem, afterElement);
+                    }
+                });
+
+                item.addEventListener("dragend", () => {
+                    draggedItem.classList.remove("dragging");
+                    draggedItem = null;
+                    updateNodeOrder(); // ノード順を `nodes` 配列に反映
+                });
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll("li:not(.dragging)")];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function updateNodeOrder() {
+            let nodeList = document.getElementById("nodeList");
+            let newOrder = [...nodeList.children].map(li => parseInt(li.dataset.index));
+
+            nodes = newOrder.map(i => nodes[i]); // `nodes` 配列を並び替え
+            updateNodeList(); // ノード一覧を更新
+        }
 
         // makeDraggable(document.getElementById("draggable"));
         // nodes.push(document.getElementById("draggable"));
