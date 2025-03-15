@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nanodes</title>
     <style>
+        body {
+            background-color: #ccc;
+        }
         .toolbar {
             display: flex;
             background: red;
@@ -107,7 +110,7 @@
 
         .node-list .node-name {
             display: block;
-            background: #007bff;
+            background: red;
             color: white;
             padding: 5px;
             text-align: center;
@@ -116,8 +119,12 @@
             cursor: pointer;
         }
 
-        .node-list .node-name:hover {
-            background: #0056b3;
+        .node-list {
+            /* background: #0056b3; */
+        }
+
+        .node-name:hover {
+            background: brown;
         }
 
         .node-list .position-controls {
@@ -126,6 +133,67 @@
             margin-top: 5px;
         }
         .node-list input {
+            width: 45%;
+        }
+        .node-list-buttons {
+            display: flex;
+            gap: 3px;
+        }
+
+        .node-list-buttons button {
+            border: none;
+            background: #ddd;
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            width: 30px;
+        }
+
+        .node-list-buttons button:hover {
+            background: #ccc;
+        }
+        .node-list-item {
+            padding: 5px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+        .node-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 5px;
+        }
+        .node-name {
+            flex-grow: 1;
+            background: #007bff;
+            color: white;
+            padding: 5px;
+            text-align: center;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .node-btn {
+            border: none;
+            background: #ddd;
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            width: 30px;
+            height: 30px;
+            text-align: center;
+            line-height: 20px;
+        }
+        .node-btn:hover {
+            background: #ccc;
+        }
+        .position-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        .position-controls input {
             width: 45%;
         }
         .connect-btn.selected {
@@ -450,10 +518,12 @@
             nodes.forEach((node, index) => {
                 let li = document.createElement("li");
                 li.draggable = true;
-                li.dataset.index = index; // ノードのインデックスをセット
+                li.dataset.index = index;
+                li.className = "node-list-item";
 
                 let nodeName = node.querySelector(".header span").textContent || `ノード ${index + 1}`;
 
+                // ノード名ボタン
                 let nameButton = document.createElement("button");
                 nameButton.className = "node-name";
                 nameButton.textContent = nodeName;
@@ -462,7 +532,6 @@
                 nameButton.onclick = () => {
                     let content = node.querySelector(".content");
 
-                    // 非表示なら表示する
                     if (content.style.display === "none") {
                         content.style.display = "block";
                     }
@@ -471,27 +540,56 @@
                     let scrollX = window.scrollX || document.documentElement.scrollLeft;
                     let scrollY = window.scrollY || document.documentElement.scrollTop;
 
-                    // 正確なスクロール位置を計算
                     let centerX = scrollX + rect.left - (window.innerWidth / 2) + (rect.width / 2);
                     let centerY = scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2);
 
-                    // requestAnimationFrame を使ってスクロールを確実に実行
-                    requestAnimationFrame(() => {
-                        window.scrollTo({ left: centerX, top: centerY, behavior: "smooth" });
+                    window.scrollTo({ left: centerX, top: centerY, behavior: "smooth" });
 
-                        // スクロール後にフォーカス＆全選択
-                        setTimeout(() => {
-                            content.focus();
-
-                            // 全選択処理
-                            let range = document.createRange();
-                            let selection = window.getSelection();
-                            range.selectNodeContents(content);
-                            selection.removeAllRanges();
-                            selection.addRange(range);
-                        }, 300); // スクロールが終わるタイミングで確実に実行
-                    });
+                    setTimeout(() => {
+                        content.focus();
+                        let range = document.createRange();
+                        let selection = window.getSelection();
+                        range.selectNodeContents(content);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }, 300);
                 };
+
+                // ボタンを横並びに配置
+                let buttonsContainer = document.createElement("div");
+                buttonsContainer.className = "node-list-buttons";
+
+                // 👁️ 表示/非表示ボタン
+                let toggleButton = document.createElement("button");
+                toggleButton.className = "node-btn";
+                toggleButton.textContent = "👁️";
+                toggleButton.onclick = () => {
+                    let content = node.querySelector(".content");
+                    content.style.display = content.style.display === "none" ? "block" : "none";
+                    updateLines();
+                };
+
+                // 🔗 接続ボタン
+                let connectButton = document.createElement("button");
+                connectButton.className = "node-btn";
+                connectButton.textContent = "🔗";
+                connectButton.onclick = () => startConnection(node);
+
+                // ❌ 削除ボタン
+                let deleteButton = document.createElement("button");
+                deleteButton.className = "node-btn";
+                deleteButton.textContent = "❌";
+                deleteButton.onclick = () => removeNode(node);
+
+                buttonsContainer.appendChild(toggleButton);
+                buttonsContainer.appendChild(connectButton);
+                buttonsContainer.appendChild(deleteButton);
+
+                // ノード名とボタンを同じ行にする
+                let rowContainer = document.createElement("div");
+                rowContainer.className = "node-row";
+                rowContainer.appendChild(nameButton);
+                rowContainer.appendChild(buttonsContainer);
 
                 // X / Y座標の入力欄
                 let positionControls = document.createElement("div");
@@ -516,13 +614,7 @@
                 positionControls.appendChild(xInput);
                 positionControls.appendChild(yInput);
 
-                let observer = new MutationObserver(() => {
-                    xInput.value = node.offsetLeft;
-                    yInput.value = node.offsetTop;
-                });
-                observer.observe(node, { attributes: true, attributeFilter: ["style"] });
-
-                li.appendChild(nameButton);
+                li.appendChild(rowContainer);
                 li.appendChild(positionControls);
                 nodeList.appendChild(li);
             });
